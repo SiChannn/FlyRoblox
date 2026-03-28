@@ -1,403 +1,372 @@
-local Players=game:GetService"Players"
-local RunService=game:GetService"RunService"
-local UserInputService=game:GetService"UserInputService"
-local Workspace=game:GetService"Workspace"
-local CoreGui=game:GetService"CoreGui"
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
 
-local player=Players.LocalPlayer
-local camera=Workspace.CurrentCamera
-
-local cfg={
-    speed=100,
-    minSpeed=10,
-    maxSpeed=500,
-    rotSpeed=12,
-    noclip=true,
-    toggleKey=Enum.KeyCode.F,
-    guiToggleKey=Enum.KeyCode.RightControl
+local Settings = {
+    Speed = 100,
+    FlightBind = Enum.KeyCode.F,
+    GUIBind = Enum.KeyCode.RightControl
 }
 
-local char,hum,root=nil,nil,nil
-local flying=false
-local speedMult=1
-local keys={W=false,A=false,S=false,D=false,Space=false,LeftShift=false}
-local guiVisible=true
-local gui=nil
+local Flight = {
+    Active = false,
+    BodyVelocity = nil,
+    BodyGyro = nil,
+    OriginalGravity = nil
+}
 
-local function createGUI()
-    gui=Instance.new("ScreenGui")
-    gui.Name="FlyGUI"
-    gui.Parent=CoreGui
-    gui.ResetOnSpawn=false
-    
-    local main=Instance.new("Frame")
-    main.Size=UDim2.new(0,200,0,110)
-    main.Position=UDim2.new(0,12,0,12)
-    main.BackgroundColor3=Color3.new(0.08,0.08,0.08)
-    main.BackgroundTransparency=0.25
-    main.BorderSizePixel=0
-    main.Parent=gui
-    
-    local corner=Instance.new("UICorner")
-    corner.CornerRadius=UDim.new(0,8)
-    corner.Parent=main
-    
-    local title=Instance.new("TextLabel")
-    title.Size=UDim2.new(1,0,0,32)
-    title.Position=UDim2.new(0,0,0,0)
-    title.BackgroundTransparency=1
-    title.Text="✈ Fly - by SiChan"
-    title.TextColor3=Color3.new(0.4,0.9,0.4)
-    title.Font=Enum.Font.GothamBold
-    title.TextSize=14
-    title.Parent=main
-    
-    local line=Instance.new("Frame")
-    line.Size=UDim2.new(1,-20,0,1)
-    line.Position=UDim2.new(0,10,0,32)
-    line.BackgroundColor3=Color3.new(0.3,0.3,0.3)
-    line.BorderSizePixel=0
-    line.Parent=main
-    
-    local speedFrame=Instance.new("Frame")
-    speedFrame.Size=UDim2.new(1,-20,0,40)
-    speedFrame.Position=UDim2.new(0,10,0,38)
-    speedFrame.BackgroundTransparency=1
-    speedFrame.Parent=main
-    
-    local speedLabel=Instance.new("TextLabel")
-    speedLabel.Size=UDim2.new(0,50,0,18)
-    speedLabel.Position=UDim2.new(0,0,0,0)
-    speedLabel.BackgroundTransparency=1
-    speedLabel.Text="SPEED"
-    speedLabel.TextColor3=Color3.new(0.8,0.8,0.8)
-    speedLabel.Font=Enum.Font.GothamBold
-    speedLabel.TextSize=11
-    speedLabel.TextXAlignment=Enum.TextXAlignment.Left
-    speedLabel.Parent=speedFrame
-    
-    local speedVal=Instance.new("TextLabel")
-    speedVal.Size=UDim2.new(0,60,0,18)
-    speedVal.Position=UDim2.new(1,-60,0,0)
-    speedVal.BackgroundTransparency=1
-    speedVal.Text="100"
-    speedVal.TextColor3=Color3.new(0.4,0.8,1)
-    speedVal.Font=Enum.Font.GothamBold
-    speedVal.TextSize=12
-    speedVal.TextXAlignment=Enum.TextXAlignment.Right
-    speedVal.Parent=speedFrame
-    
-    local sliderBg=Instance.new("Frame")
-    sliderBg.Size=UDim2.new(1,0,0,4)
-    sliderBg.Position=UDim2.new(0,0,0,22)
-    sliderBg.BackgroundColor3=Color3.new(0.25,0.25,0.25)
-    sliderBg.BorderSizePixel=0
-    sliderBg.Parent=speedFrame
-    
-    local fill=Instance.new("Frame")
-    fill.Size=UDim2.new((cfg.speed-cfg.minSpeed)/(cfg.maxSpeed-cfg.minSpeed),0,1,0)
-    fill.BackgroundColor3=Color3.new(0.3,0.7,1)
-    fill.BorderSizePixel=0
-    fill.Parent=sliderBg
-    
-    local sliderHitbox=Instance.new("TextButton")
-    sliderHitbox.Size=UDim2.new(1,0,1,2)
-    sliderHitbox.Position=UDim2.new(0,0,-1,0)
-    sliderHitbox.BackgroundTransparency=1
-    sliderHitbox.Text=""
-    sliderHitbox.AutoButtonColor=false
-    sliderHitbox.Parent=sliderBg
-    
-    local keyFrame=Instance.new("Frame")
-    keyFrame.Size=UDim2.new(1,-20,0,28)
-    keyFrame.Position=UDim2.new(0,10,0,82)
-    keyFrame.BackgroundTransparency=1
-    keyFrame.Parent=main
-    
-    local keyLabel=Instance.new("TextLabel")
-    keyLabel.Size=UDim2.new(0,50,1,0)
-    keyLabel.BackgroundTransparency=1
-    keyLabel.Text="TOGGLE"
-    keyLabel.TextColor3=Color3.new(0.8,0.8,0.8)
-    keyLabel.Font=Enum.Font.GothamBold
-    keyLabel.TextSize=11
-    keyLabel.TextXAlignment=Enum.TextXAlignment.Left
-    keyLabel.Parent=keyFrame
-    
-    local keyBtn=Instance.new("TextButton")
-    keyBtn.Size=UDim2.new(0,55,0,24)
-    keyBtn.Position=UDim2.new(1,-55,0,2)
-    keyBtn.Text="F"
-    keyBtn.TextColor3=Color3.new(1,1,1)
-    keyBtn.BackgroundColor3=Color3.new(0.25,0.25,0.25)
-    keyBtn.Font=Enum.Font.GothamBold
-    keyBtn.TextSize=12
-    keyBtn.BorderSizePixel=0
-    keyBtn.Parent=keyFrame
-    
-    local keyCorner=Instance.new("UICorner")
-    keyCorner.CornerRadius=UDim.new(0,4)
-    keyCorner.Parent=keyBtn
-    
-    local guiHint=Instance.new("TextLabel")
-    guiHint.Size=UDim2.new(1,0,0,18)
-    guiHint.Position=UDim2.new(0,0,1,-18)
-    guiHint.BackgroundTransparency=1
-    guiHint.Text="[Right Ctrl] hide/show"
-    guiHint.TextColor3=Color3.new(0.5,0.5,0.5)
-    guiHint.Font=Enum.Font.Gotham
-    guiHint.TextSize=9
-    guiHint.Parent=main
-    
-    local binding=false
-    
-    local function updateDisplay()
-        local currentSpeed=cfg.speed*speedMult
-        speedVal.Text=math.floor(currentSpeed)
+local rebindingFlight = false
+local rebindingGUI = false
+
+local ScreenGui = Instance.new("ScreenGui")
+local MainFrame = Instance.new("Frame")
+local Title = Instance.new("TextLabel")
+local SpeedLabel = Instance.new("TextLabel")
+local SpeedBox = Instance.new("TextBox")
+local ToggleText = Instance.new("TextLabel")
+local FlightBindButton = Instance.new("TextButton")
+local FlightBindStatus = Instance.new("TextLabel")
+local GUIBindButton = Instance.new("TextButton")
+local GUIBindStatus = Instance.new("TextLabel")
+
+ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+ScreenGui.Name = "FlightGUI"
+ScreenGui.ResetOnSpawn = false
+
+MainFrame.Parent = ScreenGui
+MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+MainFrame.BackgroundTransparency = 0.3
+MainFrame.BorderColor3 = Color3.fromRGB(0, 255, 100)
+MainFrame.BorderSizePixel = 2
+MainFrame.Position = UDim2.new(0.5, -100, 0.5, -90)
+MainFrame.Size = UDim2.new(0, 200, 0, 180)
+MainFrame.ClipsDescendants = false
+
+local corner = Instance.new("UICorner")
+corner.Parent = MainFrame
+corner.CornerRadius = UDim.new(0, 12)
+
+Title.Parent = MainFrame
+Title.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+Title.BackgroundTransparency = 0.4
+Title.BorderSizePixel = 0
+Title.Position = UDim2.new(0, 0, 0, 0)
+Title.Size = UDim2.new(1, 0, 0, 30)
+Title.Font = Enum.Font.GothamBold
+Title.Text = "Fly - by SiChan"
+Title.TextColor3 = Color3.fromRGB(0, 255, 100)
+Title.TextSize = 14
+
+local titleCorner = Instance.new("UICorner")
+titleCorner.Parent = Title
+titleCorner.CornerRadius = UDim.new(0, 12)
+
+local dragEnabled = false
+local dragStartPos
+local dragStartMouse
+
+Title.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragEnabled = true
+        dragStartPos = MainFrame.Position
+        dragStartMouse = input.Position
     end
-    
-    keyBtn.MouseButton1Click:Connect(function()
-        binding=true
-        keyBtn.Text="..."
-        local conn
-        conn=UserInputService.InputBegan:Connect(function(input,proc)
-            if proc or not binding then return end
-            if input.KeyCode~=Enum.KeyCode.Unknown then
-                cfg.toggleKey=input.KeyCode
-                keyBtn.Text=input.KeyCode.Name
-                binding=false
-                conn:Disconnect()
-            end
-        end)
-        task.wait(3)
-        if binding then
-            binding=false
-            keyBtn.Text=cfg.toggleKey.Name
-        end
-    end)
-    
-    local dragging=false
-    sliderHitbox.InputBegan:Connect(function(inp)
-        if inp.UserInputType==Enum.UserInputType.MouseButton1 then
-            dragging=true
-        end
-    end)
-    sliderHitbox.InputEnded:Connect(function()
-        dragging=false
-    end)
-    UserInputService.InputChanged:Connect(function(inp)
-        if dragging and inp.UserInputType==Enum.UserInputType.MouseMovement then
-            local pos=math.clamp((inp.Position.X-sliderBg.AbsolutePosition.X)/sliderBg.AbsoluteSize.X,0,1)
-            cfg.speed=cfg.minSpeed+(cfg.maxSpeed-cfg.minSpeed)*pos
-            fill.Size=UDim2.new(pos,0,1,0)
-            updateDisplay()
-        end
-    end)
-    
-    updateDisplay()
-    return {update=updateDisplay}
-end
+end)
 
-local guiControls=createGUI()
-
-local function toggleGUI()
-    guiVisible=not guiVisible
-    gui.Enabled=guiVisible
-end
-
-local function freezeChar()
-    if not hum then return end
-    hum.PlatformStand=true
-    hum.AutoRotate=false
-    hum.Sit=false
-    local states={
-        Enum.HumanoidStateType.Jumping,
-        Enum.HumanoidStateType.FallingDown,
-        Enum.HumanoidStateType.GettingUp,
-        Enum.HumanoidStateType.Stunned,
-        Enum.HumanoidStateType.Climbing,
-        Enum.HumanoidStateType.Landed,
-        Enum.HumanoidStateType.Physics,
-        Enum.HumanoidStateType.Ragdoll,
-        Enum.HumanoidStateType.Freefall,
-        Enum.HumanoidStateType.Swimming,
-        Enum.HumanoidStateType.Running,
-        Enum.HumanoidStateType.Sprinting
-    }
-    for _,s in ipairs(states) do hum:SetStateEnabled(s,false) end
-    for _,a in ipairs(hum:GetPlayingAnimationTracks()) do a:Stop() end
-    if root then
-        root.Velocity=Vector3.zero
-        root.AssemblyLinearVelocity=Vector3.zero
-        root.AssemblyAngularVelocity=Vector3.zero
+UserInputService.InputChanged:Connect(function(input)
+    if dragEnabled and input.UserInputType == Enum.UserInputType.MouseMovement then
+        local delta = input.Position - dragStartMouse
+        MainFrame.Position = UDim2.new(dragStartPos.X.Scale, dragStartPos.X.Offset + delta.X, dragStartPos.Y.Scale, dragStartPos.Y.Offset + delta.Y)
     end
-end
+end)
 
-local function unfreezeChar()
-    if not hum then return end
-    hum.PlatformStand=false
-    hum.AutoRotate=true
-    local states={
-        Enum.HumanoidStateType.Jumping,
-        Enum.HumanoidStateType.FallingDown,
-        Enum.HumanoidStateType.GettingUp,
-        Enum.HumanoidStateType.Stunned,
-        Enum.HumanoidStateType.Climbing,
-        Enum.HumanoidStateType.Landed,
-        Enum.HumanoidStateType.Physics,
-        Enum.HumanoidStateType.Ragdoll,
-        Enum.HumanoidStateType.Freefall,
-        Enum.HumanoidStateType.Swimming,
-        Enum.HumanoidStateType.Running,
-        Enum.HumanoidStateType.Sprinting
-    }
-    for _,s in ipairs(states) do hum:SetStateEnabled(s,true) end
-end
-
-local function enableNoclip()
-    if not cfg.noclip or not char then return end
-    for _,p in ipairs(char:GetDescendants()) do
-        if p:IsA"BasePart" then
-            p.CanCollide=false
-        end
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragEnabled = false
     end
-    char.DescendantAdded:Connect(function(d)
-        if d:IsA"BasePart" then d.CanCollide=false end
-    end)
-end
+end)
 
-local function disableNoclip()
-    if not char then return end
-    for _,p in ipairs(char:GetDescendants()) do
-        if p:IsA"BasePart" then
-            p.CanCollide=true
-        end
-    end
-end
+SpeedLabel.Parent = MainFrame
+SpeedLabel.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+SpeedLabel.BackgroundTransparency = 1
+SpeedLabel.Position = UDim2.new(0.1, 0, 0.32, 0)
+SpeedLabel.Size = UDim2.new(0.3, 0, 0, 22)
+SpeedLabel.Font = Enum.Font.GothamBold
+SpeedLabel.Text = "SPEED"
+SpeedLabel.TextColor3 = Color3.fromRGB(0, 255, 100)
+SpeedLabel.TextSize = 12
+SpeedLabel.TextXAlignment = Enum.TextXAlignment.Left
 
-function startFlight()
-    if flying or not char or not hum or not root then return end
-    flying=true
-    freezeChar()
-    if cfg.noclip then enableNoclip() end
-    UserInputService.MouseBehavior=Enum.MouseBehavior.LockCurrentPosition
-    UserInputService.MouseIconEnabled=false
-    guiControls.update()
-end
+SpeedBox.Parent = MainFrame
+SpeedBox.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
+SpeedBox.BackgroundTransparency = 0.3
+SpeedBox.BorderSizePixel = 0
+SpeedBox.Position = UDim2.new(0.6, 0, 0.32, 0)
+SpeedBox.Size = UDim2.new(0.3, 0, 0, 22)
+SpeedBox.Font = Enum.Font.GothamBold
+SpeedBox.Text = "100"
+SpeedBox.TextColor3 = Color3.fromRGB(0, 255, 100)
+SpeedBox.TextSize = 12
+SpeedBox.TextXAlignment = Enum.TextXAlignment.Center
 
-function stopFlight()
-    if not flying then return end
-    flying=false
-    unfreezeChar()
-    if cfg.noclip then disableNoclip() end
-    if root then
-        root.Velocity=Vector3.zero
-        root.AssemblyLinearVelocity=Vector3.zero
-        root.AssemblyAngularVelocity=Vector3.zero
-    end
-    UserInputService.MouseBehavior=Enum.MouseBehavior.Default
-    UserInputService.MouseIconEnabled=true
-    guiControls.update()
-end
+local speedCorner = Instance.new("UICorner")
+speedCorner.Parent = SpeedBox
+speedCorner.CornerRadius = UDim.new(0, 6)
 
-local function updateMovement(dt)
-    if not flying or not camera or not root then return end
-    dt=math.min(dt or 0.016,0.033)
-    
-    local cf=camera.CFrame
-    local move=Vector3.zero
-    
-    if keys.W then move=move+cf.LookVector end
-    if keys.S then move=move-cf.LookVector end
-    if keys.D then move=move+cf.RightVector end
-    if keys.A then move=move-cf.RightVector end
-    if keys.Space then move=move+cf.UpVector end
-    if keys.LeftShift then move=move-cf.UpVector end
-    
-    local mag=move.Magnitude
-    
-    if mag>0.01 then
-        move=move/mag
-        local spd=cfg.speed*speedMult
-        root.AssemblyLinearVelocity=move*spd
+SpeedBox.FocusLost:Connect(function(enterPressed)
+    local newSpeed = tonumber(SpeedBox.Text)
+    if newSpeed then
+        newSpeed = math.clamp(newSpeed, 10, 1000)
+        Settings.Speed = newSpeed
+        SpeedBox.Text = tostring(newSpeed)
     else
-        root.AssemblyLinearVelocity=Vector3.new(0,0,0)
-        root.Velocity=Vector3.new(0,0,0)
-        root.AssemblyAngularVelocity=Vector3.new(0,0,0)
+        SpeedBox.Text = tostring(Settings.Speed)
     end
+end)
+
+ToggleText.Parent = MainFrame
+ToggleText.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+ToggleText.BackgroundTransparency = 1
+ToggleText.Position = UDim2.new(0.1, 0, 0.52, 0)
+ToggleText.Size = UDim2.new(0.8, 0, 0, 18)
+ToggleText.Font = Enum.Font.GothamBold
+ToggleText.Text = "FLIGHT CONTROLS"
+ToggleText.TextColor3 = Color3.fromRGB(0, 255, 100)
+ToggleText.TextSize = 10
+
+FlightBindButton.Parent = MainFrame
+FlightBindButton.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
+FlightBindButton.BackgroundTransparency = 0.3
+FlightBindButton.BorderSizePixel = 0
+FlightBindButton.Position = UDim2.new(0.1, 0, 0.65, 0)
+FlightBindButton.Size = UDim2.new(0.35, 0, 0, 24)
+FlightBindButton.Font = Enum.Font.Gotham
+FlightBindButton.Text = "FLIGHT"
+FlightBindButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+FlightBindButton.TextSize = 11
+
+local flightCorner = Instance.new("UICorner")
+flightCorner.Parent = FlightBindButton
+flightCorner.CornerRadius = UDim.new(0, 6)
+
+FlightBindStatus.Parent = MainFrame
+FlightBindStatus.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+FlightBindStatus.BackgroundTransparency = 0.3
+FlightBindStatus.BorderSizePixel = 0
+FlightBindStatus.Position = UDim2.new(0.55, 0, 0.65, 0)
+FlightBindStatus.Size = UDim2.new(0.35, 0, 0, 24)
+FlightBindStatus.Font = Enum.Font.Gotham
+FlightBindStatus.Text = "F"
+FlightBindStatus.TextColor3 = Color3.fromRGB(0, 255, 100)
+FlightBindStatus.TextSize = 11
+
+local flightStatusCorner = Instance.new("UICorner")
+flightStatusCorner.Parent = FlightBindStatus
+flightStatusCorner.CornerRadius = UDim.new(0, 6)
+
+GUIBindButton.Parent = MainFrame
+GUIBindButton.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
+GUIBindButton.BackgroundTransparency = 0.3
+GUIBindButton.BorderSizePixel = 0
+GUIBindButton.Position = UDim2.new(0.1, 0, 0.82, 0)
+GUIBindButton.Size = UDim2.new(0.35, 0, 0, 24)
+GUIBindButton.Font = Enum.Font.Gotham
+GUIBindButton.Text = "GUI"
+GUIBindButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+GUIBindButton.TextSize = 11
+
+local guiCorner = Instance.new("UICorner")
+guiCorner.Parent = GUIBindButton
+guiCorner.CornerRadius = UDim.new(0, 6)
+
+GUIBindStatus.Parent = MainFrame
+GUIBindStatus.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+GUIBindStatus.BackgroundTransparency = 0.3
+GUIBindStatus.BorderSizePixel = 0
+GUIBindStatus.Position = UDim2.new(0.55, 0, 0.82, 0)
+GUIBindStatus.Size = UDim2.new(0.35, 0, 0, 24)
+GUIBindStatus.Font = Enum.Font.Gotham
+GUIBindStatus.Text = "RCTRL"
+GUIBindStatus.TextColor3 = Color3.fromRGB(0, 255, 100)
+GUIBindStatus.TextSize = 10
+
+local guiStatusCorner = Instance.new("UICorner")
+guiStatusCorner.Parent = GUIBindStatus
+guiStatusCorner.CornerRadius = UDim.new(0, 6)
+
+local function updateBindDisplays()
+    local flightName = tostring(Settings.FlightBind):gsub("Enum.KeyCode.", "")
+    local guiName = tostring(Settings.GUIBind):gsub("Enum.KeyCode.", "")
+    if flightName == "F" then flightName = "F" end
+    if guiName == "RightControl" then guiName = "RCTRL" end
+    FlightBindStatus.Text = flightName
+    GUIBindStatus.Text = guiName
+end
+
+local function enableFlight()
+    if not LocalPlayer.Character then return end
+    local char = LocalPlayer.Character
+    local humanoid = char:FindFirstChild("Humanoid")
+    local rootPart = char:FindFirstChild("HumanoidRootPart")
     
-    local targetCF=CFrame.new(root.Position, root.Position + cf.LookVector)
-    local newCF=root.CFrame:Lerp(targetCF, math.min(1, dt*cfg.rotSpeed))
-    root.CFrame=CFrame.new(root.Position, newCF.Position + newCF.LookVector)
+    if not humanoid or not rootPart then return end
     
-    if math.abs(root.AssemblyLinearVelocity.Y)>0.05 and mag<0.01 then
-        root.AssemblyLinearVelocity=Vector3.new(root.AssemblyLinearVelocity.X, 0, root.AssemblyLinearVelocity.Z)
-    end
-end
-
-local function onInput(input,proc)
-    if proc then return end
-    local k=input.KeyCode
-    if k==Enum.KeyCode.W then keys.W=true
-    elseif k==Enum.KeyCode.A then keys.A=true
-    elseif k==Enum.KeyCode.S then keys.S=true
-    elseif k==Enum.KeyCode.D then keys.D=true
-    elseif k==Enum.KeyCode.Space then keys.Space=true
-    elseif k==Enum.KeyCode.LeftShift then keys.LeftShift=true
-    elseif k==cfg.toggleKey then
-        if flying then stopFlight() else startFlight() end
-    elseif k==cfg.guiToggleKey then
-        toggleGUI()
-    end
-end
-
-local function onInputEnd(input,proc)
-    if proc then return end
-    local k=input.KeyCode
-    if k==Enum.KeyCode.W then keys.W=false
-    elseif k==Enum.KeyCode.A then keys.A=false
-    elseif k==Enum.KeyCode.S then keys.S=false
-    elseif k==Enum.KeyCode.D then keys.D=false
-    elseif k==Enum.KeyCode.Space then keys.Space=false
-    elseif k==Enum.KeyCode.LeftShift then keys.LeftShift=false
-    end
-end
-
-local function onWheel(input,proc)
-    if proc or not flying then return end
-    if input.UserInputType==Enum.UserInputType.MouseWheel then
-        local d=input.Position.Z
-        if d>0 then speedMult=math.min(speedMult*1.15,8)
-        elseif d<0 then speedMult=math.max(speedMult/1.15,0.2)
+    if Flight.Active then
+        if Flight.BodyVelocity then Flight.BodyVelocity:Destroy() end
+        if Flight.BodyGyro then Flight.BodyGyro:Destroy() end
+        
+        humanoid.PlatformStand = false
+        humanoid.AutoRotate = true
+        if Flight.OriginalGravity then
+            workspace.Gravity = Flight.OriginalGravity
         end
-        guiControls.update()
+        
+        Flight.Active = false
+    else
+        Flight.OriginalGravity = workspace.Gravity
+        workspace.Gravity = 0
+        
+        Flight.BodyVelocity = Instance.new("BodyVelocity")
+        Flight.BodyVelocity.MaxForce = Vector3.new(1e6, 1e6, 1e6)
+        Flight.BodyVelocity.P = 1e5
+        Flight.BodyVelocity.Velocity = Vector3.new(0, 0, 0)
+        Flight.BodyVelocity.Parent = rootPart
+        
+        Flight.BodyGyro = Instance.new("BodyGyro")
+        Flight.BodyGyro.MaxTorque = Vector3.new(1e6, 1e6, 1e6)
+        Flight.BodyGyro.P = 1e5
+        Flight.BodyGyro.D = 500
+        Flight.BodyGyro.CFrame = rootPart.CFrame
+        Flight.BodyGyro.Parent = rootPart
+        
+        humanoid.AutoRotate = false
+        humanoid.PlatformStand = true
+        
+        Flight.Active = true
     end
 end
 
-local function setupChar(newChar)
-    if flying then stopFlight() end
-    char=newChar
-    hum=char:WaitForChild"Humanoid"
-    root=char:WaitForChild"HumanoidRootPart"
-    if flying then task.wait(0.5) startFlight() end
+local function updateFlight()
+    if not Flight.Active then return end
+    if not LocalPlayer.Character then 
+        enableFlight()
+        return 
+    end
+    
+    local char = LocalPlayer.Character
+    local rootPart = char:FindFirstChild("HumanoidRootPart")
+    local humanoid = char:FindFirstChild("Humanoid")
+    if not rootPart or not humanoid then return end
+    
+    local moveDirection = Vector3.new(0, 0, 0)
+    
+    if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveDirection = moveDirection + Vector3.new(0, 0, -1) end
+    if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveDirection = moveDirection + Vector3.new(0, 0, 1) end
+    if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveDirection = moveDirection + Vector3.new(-1, 0, 0) end
+    if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveDirection = moveDirection + Vector3.new(1, 0, 0) end
+    if UserInputService:IsKeyDown(Enum.KeyCode.Space) then moveDirection = moveDirection + Vector3.new(0, 1, 0) end
+    if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then moveDirection = moveDirection + Vector3.new(0, -1, 0) end
+    
+    local cameraCFrame = workspace.CurrentCamera.CFrame
+    local forward = cameraCFrame.LookVector
+    local right = cameraCFrame.RightVector
+    local up = cameraCFrame.UpVector
+    
+    local targetVelocity = Vector3.new(0, 0, 0)
+    
+    if moveDirection.Magnitude > 0 then
+        moveDirection = moveDirection.Unit
+        targetVelocity = (right * moveDirection.X + up * moveDirection.Y + forward * -moveDirection.Z) * Settings.Speed
+    end
+    
+    Flight.BodyVelocity.Velocity = targetVelocity
+    
+    local targetCFrame = CFrame.new(rootPart.Position, rootPart.Position + forward) * CFrame.Angles(0, 0, 0)
+    Flight.BodyGyro.CFrame = targetCFrame
+    
+    humanoid.AutoRotate = false
 end
 
-if player.Character then setupChar(player.Character) end
-player.CharacterAdded:Connect(setupChar)
-player.CharacterRemoving:Connect(function()
-    if flying then stopFlight() end
-    char,hum,root=nil,nil,nil
+local function startRebind(bindType)
+    if bindType == "flight" then
+        rebindingFlight = true
+        FlightBindButton.Text = "..."
+        FlightBindButton.BackgroundColor3 = Color3.fromRGB(150, 100, 50)
+    elseif bindType == "gui" then
+        rebindingGUI = true
+        GUIBindButton.Text = "..."
+        GUIBindButton.BackgroundColor3 = Color3.fromRGB(150, 100, 50)
+    end
+end
+
+local function finishRebind(bindType, keyCode)
+    if bindType == "flight" then
+        rebindingFlight = false
+        if keyCode then
+            Settings.FlightBind = keyCode
+        end
+        FlightBindButton.Text = "FLIGHT"
+        FlightBindButton.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
+    elseif bindType == "gui" then
+        rebindingGUI = false
+        if keyCode then
+            Settings.GUIBind = keyCode
+        end
+        GUIBindButton.Text = "GUI"
+        GUIBindButton.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
+    end
+    updateBindDisplays()
+end
+
+FlightBindButton.MouseButton1Click:Connect(function()
+    if rebindingFlight then
+        finishRebind("flight", nil)
+    else
+        startRebind("flight")
+    end
 end)
 
-UserInputService.InputBegan:Connect(onInput)
-UserInputService.InputEnded:Connect(onInputEnd)
-UserInputService.InputChanged:Connect(onWheel)
-
-local lt=tick()
-RunService.Heartbeat:Connect(function()
-    local now=tick()
-    updateMovement(now-lt)
-    lt=now
+GUIBindButton.MouseButton1Click:Connect(function()
+    if rebindingGUI then
+        finishRebind("gui", nil)
+    else
+        startRebind("gui")
+    end
 end)
 
-print("[FLY] Loaded | "..cfg.toggleKey.Name.." to toggle flight | Right Ctrl to toggle GUI")
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if rebindingFlight and input.KeyCode ~= Enum.KeyCode.Unknown then
+        finishRebind("flight", input.KeyCode)
+    end
+    if rebindingGUI and input.KeyCode ~= Enum.KeyCode.Unknown then
+        finishRebind("gui", input.KeyCode)
+    end
+    
+    if gameProcessed then return end
+    if not rebindingFlight and not rebindingGUI then
+        if input.KeyCode == Settings.FlightBind then
+            enableFlight()
+        end
+        if input.KeyCode == Settings.GUIBind then
+            ScreenGui.Enabled = not ScreenGui.Enabled
+        end
+    end
+end)
+
+RunService.RenderStepped:Connect(updateFlight)
+
+LocalPlayer.CharacterAdded:Connect(function()
+    if Flight.Active then
+        if Flight.BodyVelocity then Flight.BodyVelocity:Destroy() end
+        if Flight.BodyGyro then Flight.BodyGyro:Destroy() end
+        Flight.Active = false
+        if Flight.OriginalGravity then
+            workspace.Gravity = Flight.OriginalGravity
+        end
+    end
+    Flight.BodyVelocity = nil
+    Flight.BodyGyro = nil
+end)
+
+updateBindDisplays()
